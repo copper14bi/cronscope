@@ -53,9 +53,14 @@ func (r *Runner) Run(ctx context.Context) {
 
 func (r *Runner) checkAll() {
 	now := time.Now()
+	var failures int
 	for _, job := range r.cfg.Jobs {
 		if err := r.mon.Check(job, now); err != nil {
 			log.Printf("runner: check failed for job %q: %v", job.Name, err)
+			failures++
 		}
+	}
+	if failures > 0 {
+		log.Printf("runner: completed check with %d/%d job failures", failures, len(r.cfg.Jobs))
 	}
 }
