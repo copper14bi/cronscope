@@ -19,18 +19,27 @@ func seedStore() *history.Store {
 	return s
 }
 
+// serveAndDecode is a helper that fires a GET request against the handler and
+// decodes the JSON response body into dest. It returns the recorded response
+// so callers can inspect status codes and headers.
+func serveAndDecode(t *testing.T, s *history.Store, path string, dest interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	historyapi.Handler(s).ServeHTTP(rec, req)
+	if err := json.NewDecoder(rec.Body).Decode(dest); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	return rec
+}
+
 func TestHandler_AllEvents(t *testing.T) {
 	s := seedStore()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/history", nil)
-	historyapi.Handler(s).ServeHTTP(rec, req)
+	var events []history.Event
+	rec := serveAndDecode(t, s, "/history", &events)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	var events []history.Event
-	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
-		t.Fatalf("decode error: %v", err)
 	}
 	if len(events) != 3 {
 		t.Errorf("expected 3 events, got %d", len(events))
@@ -39,16 +48,11 @@ func TestHandler_AllEvents(t *testing.T) {
 
 func TestHandler_FilterByJob(t *testing.T) {
 	s := seedStore()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/history/backup", nil)
-	historyapi.Handler(s).ServeHTTP(rec, req)
+	var events []history.Event
+	rec := serveAndDecode(t, s, "/history/backup", &events)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	var events []history.Event
-	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
-		t.Fatalf("decode error: %v", err)
 	}
 	if len(events) != 2 {
 		t.Errorf("expected 2 events for 'backup', got %d", len(events))
@@ -80,14 +84,9 @@ func TestHandler_MethodNotAllowed(t *testing.T) {
 
 func TestHandler_EmptyStoreReturnsArray(t *testing.T) {
 	s := history.New(10)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/history", nil)
-	historyapi.Handler(s).ServeHTTP(rec, req)
-
 	var events []history.Event
-	if err := json.NewDecoder(rec.Body).Decode(&events); err != nil {
-		t.Fatalf("decode error: %v", err)
-	}
+	serveAndDecode(t, s, "/history", &events)
+
 	if events == nil {
 		t.Error("expected empty array, not null")
 	}
