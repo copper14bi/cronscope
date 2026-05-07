@@ -37,3 +37,23 @@ func IsLongRunning(startedAt time.Time, now time.Time, maxDuration time.Duration
 	}
 	return now.Sub(startedAt) > maxDuration
 }
+
+// NextN returns the next n scheduled times after 'from' for the given cron expression.
+// It returns an error if the expression is invalid or n is less than 1.
+func NextN(expr string, from time.Time, n int) ([]time.Time, error) {
+	if n < 1 {
+		return nil, fmt.Errorf("n must be at least 1, got %d", n)
+	}
+	p := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	sched, err := p.Parse(expr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cron expression %q: %w", expr, err)
+	}
+	times := make([]time.Time, n)
+	t := from
+	for i := range times {
+		t = sched.Next(t)
+		times[i] = t
+	}
+	return times, nil
+}
